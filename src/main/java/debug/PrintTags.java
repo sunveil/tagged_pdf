@@ -1,10 +1,16 @@
+package debug;
+
+import operators.BeginMarkedContent;
 import org.apache.pdfbox.contentstream.PDFStreamEngine;
 import org.apache.pdfbox.contentstream.operator.Operator;
 import org.apache.pdfbox.contentstream.operator.OperatorName;
+import org.apache.pdfbox.contentstream.operator.markedcontent.BeginMarkedContentSequence;
 import org.apache.pdfbox.contentstream.operator.markedcontent.DrawObject;
 import org.apache.pdfbox.contentstream.operator.state.*;
 import org.apache.pdfbox.cos.COSBase;
+import org.apache.pdfbox.cos.COSDictionary;
 import org.apache.pdfbox.cos.COSName;
+import org.apache.pdfbox.pdmodel.documentinterchange.markedcontent.PDPropertyList;
 import org.apache.pdfbox.pdmodel.graphics.PDXObject;
 import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
@@ -16,12 +22,15 @@ import java.util.List;
 public class PrintTags extends PDFStreamEngine {
 
     public PrintTags() throws IOException {
-          addOperator(new Concatenate());
-          addOperator(new DrawObject());
-          addOperator(new SetGraphicsStateParameters());
-          addOperator(new Save());
-          addOperator(new Restore());
-          addOperator(new SetMatrix());
+        super();
+        addOperator(new Concatenate());
+        addOperator(new DrawObject());
+        addOperator(new SetGraphicsStateParameters());
+        addOperator(new Save());
+        addOperator(new Restore());
+        addOperator(new SetMatrix());
+        addOperator(new BeginMarkedContent());
+        //addOperator(new BeginMarkedContentSequence());
     }
 
     protected void processOperator(Operator operator, List<COSBase> operands) throws IOException {
@@ -29,11 +38,9 @@ public class PrintTags extends PDFStreamEngine {
         if (OperatorName.BEGIN_MARKED_CONTENT.equals(operation)) {
             COSName objectName = (COSName) operands.get( 0 );
             PDXObject xobject = getResources().getXObject( objectName );
+
         }
-        if (OperatorName.BEGIN_MARKED_CONTENT_SEQ.equals(operation)) {
-            COSName objectName = (COSName) operands.get( 0 );
-            PDXObject xobject = getResources().getXObject( objectName );
-        }
+
         if (OperatorName.DRAW_OBJECT.equals(operation)){
             COSName objectName = (COSName) operands.get( 0 );
             PDXObject xobject = getResources().getXObject( objectName );
@@ -76,4 +83,11 @@ public class PrintTags extends PDFStreamEngine {
             super.processOperator( operator, operands);
         }
     }
+
+    public void beginMarkedContentSequence(COSName tag, COSDictionary properties) {
+        System.out.print(tag);
+        System.out.println(properties);
+        //getGraphicsState().getCurrentTransformationMatrix().get
+    }
+
 }
