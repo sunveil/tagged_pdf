@@ -8,6 +8,7 @@ import java.awt.geom.Rectangle2D;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
@@ -39,6 +40,7 @@ import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.PDType3CharProc;
 import org.apache.pdfbox.pdmodel.font.PDType3Font;
 import org.apache.pdfbox.pdmodel.font.PDVectorFont;
+import org.apache.pdfbox.pdmodel.font.encoding.WinAnsiEncoding;
 import org.apache.pdfbox.text.PDFMarkedContentExtractor;
 import org.apache.pdfbox.text.TextPosition;
 import org.apache.pdfbox.util.Matrix;
@@ -48,10 +50,13 @@ public class VisualizeMarkedContent {
     private PDDocument document;
     private Path debugDirectoryPath;
     private static final String SUFFIX_START_CHAR = "_";
+    PDFont font;
 
-    public VisualizeMarkedContent(PDDocument document, Path debugDirectoryPath){
+    public VisualizeMarkedContent(PDDocument document, Path debugDirectoryPath) throws IOException {
         this.document = document;
         this.debugDirectoryPath = debugDirectoryPath;
+        String dir = "/home/sunveil/Documents/projects/ispras/src/tagged_pdf/resources/fonts/";
+        font = PDTrueTypeFont.load(document, new File(dir + "TIMES.ttf"), new WinAnsiEncoding());
     }
 
     public void visualize(String fileName) throws IOException {
@@ -70,6 +75,8 @@ public class VisualizeMarkedContent {
         }
 
         PDStructureNode root = document.getDocumentCatalog().getStructureTreeRoot();
+        if (root == null)
+            return;
         Map<PDPage, PDPageContentStream> visualizations = new HashMap<>();
         showStructure(document, root, markedContents, visualizations);
         for (PDPageContentStream canvas : visualizations.values()) {
@@ -103,7 +110,7 @@ public class VisualizeMarkedContent {
         Map<Integer, PDMarkedContent> theseMarkedContents = markedContents.get(page);
         int indexHere = index++;
         System.out.printf("<%s index=%s>\n", structType, indexHere);
-        for (Object object : node.getKids()) {
+        for (Object object: node.getKids()) {
             if (object instanceof COSArray) {
                 for (COSBase base : (COSArray) object) {
                     if (base instanceof COSDictionary) {
@@ -143,6 +150,7 @@ public class VisualizeMarkedContent {
                     visualizations.put(page, canvas);
                     canvas.setFont(PDType1Font.TIMES_ROMAN, 12);
                 }
+                canvas.setFont(font, 12);
                 canvas.saveGraphicsState();
                 canvas.setStrokingColor(color);
                 canvas.addRect((float)box.getMinX(), (float)box.getMinY(), (float)box.getWidth(), (float)box.getHeight());
@@ -150,8 +158,7 @@ public class VisualizeMarkedContent {
                 canvas.setNonStrokingColor(color);
                 canvas.beginText();
                 canvas.newLineAtOffset((float)((box.getMinX() + box.getMaxX())/2), (float)box.getMaxY());
-                //structType = structType.replace("\n", "").replace("\r", "");
-                //canvas.showText(String.format("<%s index=%s>", structType, indexHere));
+                //canvas.showText(String.format("<%s index=%s>", "фывфывфыв", indexHere));
                 canvas.endText();
                 canvas.restoreGraphicsState();
             }
