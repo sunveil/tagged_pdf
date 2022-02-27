@@ -5,11 +5,13 @@ import java.awt.Shape;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.GeneralPath;
 import java.awt.geom.Rectangle2D;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -41,9 +43,25 @@ import org.apache.pdfbox.pdmodel.font.PDType3CharProc;
 import org.apache.pdfbox.pdmodel.font.PDType3Font;
 import org.apache.pdfbox.pdmodel.font.PDVectorFont;
 import org.apache.pdfbox.pdmodel.font.encoding.WinAnsiEncoding;
+import org.apache.pdfbox.rendering.ImageType;
+import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.text.PDFMarkedContentExtractor;
 import org.apache.pdfbox.text.TextPosition;
+import org.apache.pdfbox.tools.imageio.ImageIOUtil;
 import org.apache.pdfbox.util.Matrix;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
+import org.w3c.dom.Attr;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 
 public class VisualizeMarkedContent {
 
@@ -55,13 +73,45 @@ public class VisualizeMarkedContent {
     public VisualizeMarkedContent(PDDocument document, Path debugDirectoryPath) throws IOException {
         this.document = document;
         this.debugDirectoryPath = debugDirectoryPath;
-        String dir = "/home/sunveil/Documents/projects/ispras/src/tagged_pdf/resources/fonts/";
-        font = PDTrueTypeFont.load(document, new File(dir + "TIMES.ttf"), new WinAnsiEncoding());
     }
 
-    public void visualize(String fileName) throws IOException {
+    public void visualize(String fileName) throws IOException, ParserConfigurationException {
+
+        PDFRenderer pdfRenderer = new PDFRenderer(document);
+
+        String outputDirectoryPath = debugDirectoryPath.toFile().getCanonicalPath();
+        String outDirectoryPath = outputDirectoryPath.concat("/images");
+        String outAtationsPath = outputDirectoryPath.concat("/annotations");
+        String outXmlsPath = outputDirectoryPath.concat("/xmls");
+        File outXmls = new File(outXmlsPath);
+        File outAnnotations = new File(outAtationsPath);
+        File outDirectory = new File(outDirectoryPath);
+
+        outXmls.mkdirs();
+        outAnnotations.mkdirs();
+        outDirectory.mkdirs();
+        
+        for (int i = 0; i < document.getNumberOfPages(); i ++) {
+            BufferedImage image = pdfRenderer.renderImageWithDPI(i, 150, ImageType.RGB);
+            String pdfFileBaseName = FilenameUtils.getBaseName(fileName);
+            String imageFileName = String.format("%s_%03d.%s", pdfFileBaseName, i, "jpg");
+            Path outputImagePath = Paths.get(outDirectory.toString(),imageFileName);
+            ImageIOUtil.writeImage(image, outputImagePath.toString(), 150);
+
+            DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
+
+            // root elements
+            Document doc = docBuilder.newDocument();
+            Element rootElement = doc.createElement("annotation");
+            Element filename = doc.createElement("filename");
+            rootElement.appendChild(filename);
+
+        }
 
         Map<PDPage, Map<Integer, PDMarkedContent>> markedContents = new HashMap<>();
+        Map<PDPage, Rectangle2D> boxes;
+        boxes = new HashMap<PDPage, Rectangle2D>();
 
         for (PDPage page : document.getPages()) {
             PDFMarkedContentExtractor extractor = new PDFMarkedContentExtractor();
@@ -77,12 +127,14 @@ public class VisualizeMarkedContent {
         PDStructureNode root = document.getDocumentCatalog().getStructureTreeRoot();
         if (root == null)
             return;
+
         Map<PDPage, PDPageContentStream> visualizations = new HashMap<>();
-        showStructure(document, root, markedContents, visualizations);
+        boxes = showStructure(document, root, markedContents, visualizations);
         for (PDPageContentStream canvas : visualizations.values()) {
             canvas.close();
         }
-        String outFilePath = getOutputFilePath("taggedpdf", "tagged", fileName);
+        String pdfFileBaseName = FilenameUtils.getBaseName(fileName);
+        String outFilePath = getOutputFilePath("taggedpdf", pdfFileBaseName, "pdf");
         document.save(outFilePath);
         document.close();
     }
@@ -150,7 +202,7 @@ public class VisualizeMarkedContent {
                     visualizations.put(page, canvas);
                     canvas.setFont(PDType1Font.TIMES_ROMAN, 12);
                 }
-                canvas.setFont(font, 12);
+                //canvas.setFont(font, 12);
                 canvas.saveGraphicsState();
                 canvas.setStrokingColor(color);
                 canvas.addRect((float)box.getMinX(), (float)box.getMinY(), (float)box.getWidth(), (float)box.getHeight());
@@ -285,26 +337,21 @@ public class VisualizeMarkedContent {
         return at.createTransformedShape(path.getBounds2D());
     }
 
-    private String getOutputFilePath(String innerDirectoryName, String fileNameSuffix, String fileName) {
+    private String getOutputFilePath(String innerDirectoryName, String fileName, String format) throws IOException {
         // Make the specified output directory
         if (null == innerDirectoryName) {
             innerDirectoryName = "";
         } else {
             innerDirectoryName = File.separator.concat(innerDirectoryName);
         }
-        String outputDirectoryPath = debugDirectoryPath.toString();
+        String outputDirectoryPath = debugDirectoryPath.toFile().getCanonicalPath();
         String outDirectoryPath = outputDirectoryPath.concat(innerDirectoryName);
         File outDirectory = new File(outDirectoryPath);
 
         outDirectory.mkdirs();
 
-        // Build the output file path
-        String suffix = "";
-        if (null != fileNameSuffix && !fileNameSuffix.isEmpty())
-            suffix = SUFFIX_START_CHAR.concat(fileNameSuffix);
-
         File file = new File(document.getDocumentInformation().getCreator());
-        return String.format("%s/%s%s.pdf", outDirectoryPath, fileName, suffix);
+        return String.format("%s/%s.%s", outDirectoryPath, fileName, format);
     }
 
 }

@@ -14,6 +14,7 @@ import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
+import javax.xml.parsers.ParserConfigurationException;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -156,8 +157,10 @@ public class TaggedPDF {
             Path debugDirPath = outputPath.resolve(".");
             VisualizeMarkedContent drawer = new VisualizeMarkedContent(document, debugDirPath);
             drawer.visualize(path.getFileName().toString());
-            TaggedPDF meta = new TaggedPDF();
+            //TaggedPDF meta = new TaggedPDF();
             //meta.printMetadata(document);
+        } catch (ParserConfigurationException e) {
+            e.printStackTrace();
         }
     }
 
