@@ -15,6 +15,7 @@ import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.TransformerException;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -160,6 +161,8 @@ public class TaggedPDF {
             //TaggedPDF meta = new TaggedPDF();
             //meta.printMetadata(document);
         } catch (ParserConfigurationException e) {
+            e.printStackTrace();
+        } catch (TransformerException e) {
             e.printStackTrace();
         }
     }

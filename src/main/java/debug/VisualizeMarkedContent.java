@@ -54,6 +54,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
@@ -75,7 +76,7 @@ public class VisualizeMarkedContent {
         this.debugDirectoryPath = debugDirectoryPath;
     }
 
-    public void visualize(String fileName) throws IOException, ParserConfigurationException {
+    public void visualize(String fileName) throws IOException, ParserConfigurationException, TransformerException {
 
         PDFRenderer pdfRenderer = new PDFRenderer(document);
 
@@ -91,24 +92,6 @@ public class VisualizeMarkedContent {
         outAnnotations.mkdirs();
         outDirectory.mkdirs();
         
-        for (int i = 0; i < document.getNumberOfPages(); i ++) {
-            BufferedImage image = pdfRenderer.renderImageWithDPI(i, 150, ImageType.RGB);
-            String pdfFileBaseName = FilenameUtils.getBaseName(fileName);
-            String imageFileName = String.format("%s_%03d.%s", pdfFileBaseName, i, "jpg");
-            Path outputImagePath = Paths.get(outDirectory.toString(),imageFileName);
-            ImageIOUtil.writeImage(image, outputImagePath.toString(), 150);
-
-            DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
-            DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
-
-            // root elements
-            Document doc = docBuilder.newDocument();
-            Element rootElement = doc.createElement("annotation");
-            Element filename = doc.createElement("filename");
-            rootElement.appendChild(filename);
-
-        }
-
         Map<PDPage, Map<Integer, PDMarkedContent>> markedContents = new HashMap<>();
         Map<PDPage, Rectangle2D> boxes;
         boxes = new HashMap<PDPage, Rectangle2D>();
@@ -130,13 +113,85 @@ public class VisualizeMarkedContent {
 
         Map<PDPage, PDPageContentStream> visualizations = new HashMap<>();
         boxes = showStructure(document, root, markedContents, visualizations);
+
         for (PDPageContentStream canvas : visualizations.values()) {
             canvas.close();
         }
+
         String pdfFileBaseName = FilenameUtils.getBaseName(fileName);
         String outFilePath = getOutputFilePath("taggedpdf", pdfFileBaseName, "pdf");
         document.save(outFilePath);
+
+        for (int i = 0; i < document.getNumberOfPages(); i ++) {
+            BufferedImage image = pdfRenderer.renderImageWithDPI(i, 150, ImageType.RGB);
+            String imageFileName = String.format("%s_%03d.%s", pdfFileBaseName, i, "jpeg");
+            Path outputImagePath = Paths.get(outDirectory.toString(),imageFileName);
+            ImageIOUtil.writeImage(image, outputImagePath.toString(), 150);
+
+            DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
+
+            String annotationFileName = String.format("%s_%03d.%s", pdfFileBaseName, i, "xml");
+            Path outputAnnotationsPath = Paths.get(outAnnotations.toString(), annotationFileName);
+
+            // root elements
+            Document doc = docBuilder.newDocument();
+            Element rootElement = doc.createElement("annotation");
+            doc.appendChild(rootElement);
+            Element filename = doc.createElement("filename");
+            filename.setTextContent(imageFileName);
+            rootElement.appendChild(filename);
+            Element size = doc.createElement("size");
+            Element width = doc.createElement("width");
+            width.setTextContent(Integer.toString(image.getWidth()));
+            size.appendChild(width);
+            Element height = doc.createElement("height");
+            height.setTextContent(Integer.toString(image.getHeight()));
+            size.appendChild(height);
+            Element depth = doc.createElement("depth");
+            depth.setTextContent("3");
+            size.appendChild(depth);
+            rootElement.appendChild(size);
+            Element segmented = doc.createElement("segmented");
+            segmented.setTextContent("0");
+            rootElement.appendChild(segmented);
+
+            PDPage currPage = document.getPage(i);
+            for (Map.Entry<PDPage, Rectangle2D> entry : boxes.entrySet()) {
+                PDPage page = entry.getKey();
+                if (page.equals(currPage)) {
+                    Element object = doc.createElement("object");
+                    Rectangle2D box = entry.getValue();
+                    Element name = doc.createElement("name");
+                    name.setTextContent("tblock");
+                    object.appendChild(name);
+                    Element bndbox = doc.createElement("bndbox");
+                    Element xmin = doc.createElement("xmin");
+                    xmin.setTextContent(Integer.toString((int) box.getMinX()));
+                    bndbox.appendChild(xmin);
+                    Element уmin = doc.createElement("уmin");
+                    уmin.setTextContent(Integer.toString((int) box.getMinY()));
+                    bndbox.appendChild(уmin);
+                    Element xmax = doc.createElement("xmax");
+                    xmax.setTextContent(Integer.toString((int) box.getMaxX()));
+                    bndbox.appendChild(xmax);
+                    Element уmax = doc.createElement("уmax");
+                    уmax.setTextContent(Integer.toString((int) box.getMaxY()));
+                    bndbox.appendChild(уmax);
+                    object.appendChild(bndbox);
+                    rootElement.appendChild(object);
+                }
+            }
+
+            TransformerFactory transformerFactory = TransformerFactory.newInstance();
+            Transformer transformer = transformerFactory.newTransformer();
+            DOMSource source = new DOMSource(doc);
+            StreamResult result = new StreamResult(outputAnnotationsPath.toFile());
+            transformer.transform(source, result);
+        }
+
         document.close();
+
     }
 
     void addToMap(Map<Integer, PDMarkedContent> theseMarkedContents, PDMarkedContent markedContent) {
@@ -150,8 +205,12 @@ public class VisualizeMarkedContent {
 
     int index = 0;
 
-    Map<PDPage, Rectangle2D> showStructure(PDDocument document, PDStructureNode node, Map<PDPage, Map<Integer, PDMarkedContent>> markedContents, Map<PDPage, PDPageContentStream> visualizations) throws IOException {
+    Map<PDPage, Rectangle2D> showStructure(PDDocument document,
+                                           PDStructureNode node, Map<PDPage, Map<Integer,
+            PDMarkedContent>> markedContents, Map<PDPage, PDPageContentStream> visualizations) throws IOException {
         Map<PDPage, Rectangle2D> boxes = null;
+        Map<PDPage, Rectangle2D> result = new HashMap<>();
+
         String structType = null;
         PDPage page = null;
         if (node instanceof PDStructureElement) {
@@ -213,9 +272,10 @@ public class VisualizeMarkedContent {
                 //canvas.showText(String.format("<%s index=%s>", "фывфывфыв", indexHere));
                 canvas.endText();
                 canvas.restoreGraphicsState();
+                result.put(page, box);
             }
         }
-        return boxes;
+        return result;
     }
 
     Rectangle2D showContent(int mcid, Map<Integer, PDMarkedContent> theseMarkedContents) throws IOException {
