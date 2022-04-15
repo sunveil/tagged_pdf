@@ -1,14 +1,11 @@
-import debug.PrintTags;
 import debug.VisualizeMarkedContent;
 import exceptions.EmptyArgumentException;
-import org.apache.commons.io.IOUtils;
+import model.TaggedDocument;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.cos.*;
 import org.apache.pdfbox.pdmodel.*;
 import org.apache.pdfbox.pdmodel.documentinterchange.logicalstructure.*;
 import org.apache.pdfbox.pdmodel.documentinterchange.markedcontent.PDMarkedContent;
-import org.apache.pdfbox.pdmodel.graphics.optionalcontent.PDOptionalContentGroup;
-import org.apache.pdfbox.text.PDFMarkedContentExtractor;
 import org.apache.pdfbox.text.TextPosition;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
@@ -17,7 +14,6 @@ import org.kohsuke.args4j.Option;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.TransformerException;
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -91,78 +87,19 @@ public class TaggedPDF {
         System.err.println( "Usage: java " + TaggedPDF.class.getName() + " <input-pdf>");
     }
 
-    public void printMetadata(PDDocument document) throws IOException {
-        PDDocumentInformation info = document.getDocumentInformation();
-
-        File targetFile = new File("/home/sunveil/Documents/projects/ispras/src/tagged_pdf/resources/test.txt");
-        OutputStream outStream = new FileOutputStream(targetFile);
-
-        Map<PDPage, Map<Integer, PDMarkedContent>> markedContents = new HashMap<>();
-
-        for (PDPage page : document.getPages()) {
-            PDFMarkedContentExtractor extractor = new PDFMarkedContentExtractor();
-            extractor.processPage(page);
-
-            Map<Integer, PDMarkedContent> theseMarkedContents = new HashMap<>();
-            markedContents.put(page, theseMarkedContents);
-            for (PDMarkedContent markedContent : extractor.getMarkedContents()) {
-                theseMarkedContents.put(markedContent.getMCID(), markedContent);
-            }
-        }
-
-        PDStructureNode root = document.getDocumentCatalog().getStructureTreeRoot();
-        showStructure(root, markedContents);
-
-        PDPageTree allPages = document.getDocumentCatalog().getPages();
-
-        for (int i = 0; i < allPages.getCount(); i++) {
-            PDPage page = (PDPage) allPages.get(i);
-            if (null != page) {
-                InputStream contents = page.getContents();
-                if (contents != null) {
-                    BufferedReader in = new BufferedReader(new InputStreamReader(contents));
-                    String line = null;
-                    while((line = in.readLine()) != null) {
-                        line=line+"\n";
-                        outStream.write(line.getBytes(StandardCharsets.UTF_8));
-                        System.out.println(line);
-                    }
-                }
-            }
-        }
-
-        IOUtils.closeQuietly(outStream);
-
-
-        System.out.println( "Page Count=" + document.getNumberOfPages() );
-        System.out.println( "Title=" + info.getTitle() );
-        System.out.println( "Author=" + info.getAuthor() );
-        System.out.println( "Subject=" + info.getSubject() );
-        System.out.println( "Keywords=" + info.getKeywords() );
-        System.out.println( "Creator=" + info.getCreator() );
-        System.out.println( "Producer=" + info.getProducer() );
-        System.out.println( "Creation Date=" + formatDate( info.getCreationDate() ) );
-        System.out.println( "Modification Date=" + formatDate( info.getModificationDate() ) );
-        System.out.println( "Trapped=" + info.getTrapped() );
-        PrintTags printer = new PrintTags();
-        int pageNum = 0;
-        for(PDPage p: document.getPages()) {
-            pageNum++;
-            System.out.println( "Processing page: " + pageNum );
-            printer.processPage(p);
-        }
-    }
-
     private void processPDF(Path path) throws IOException {
         try (PDDocument document = Loader.loadPDF(path.toFile())) {
             Path debugDirPath = outputPath.resolve(".");
-            VisualizeMarkedContent drawer = new VisualizeMarkedContent(document, debugDirPath);
-            drawer.visualize(path.getFileName().toString());
+            TaggedDocument doc = new TaggedDocument(document, debugDirPath);
+            doc.parseTags(path.getFileName().toString());
+            //doc.visualize();
+            //VisualizeMarkedContent drawer = new VisualizeMarkedContent(document, debugDirPath);
+            //drawer.visualize(path.getFileName().toString());
             //TaggedPDF meta = new TaggedPDF();
             //meta.printMetadata(document);
-        } catch (ParserConfigurationException e) {
-            e.printStackTrace();
         } catch (TransformerException e) {
+            e.printStackTrace();
+        } catch (ParserConfigurationException e) {
             e.printStackTrace();
         }
     }
