@@ -63,16 +63,16 @@ public class TaggedDocument {
 
         PDFRenderer pdfRenderer = new PDFRenderer(document);
         String outputDirectoryPath = debugDirectoryPath.toFile().getCanonicalPath();
-        String outDirectoryPath = outputDirectoryPath.concat("/images");
-        String outAtationsPath = outputDirectoryPath.concat("/annotations");
+        String outImageDirectoryPath = outputDirectoryPath.concat("/images");
+        String outAnnotationsPath = outputDirectoryPath.concat("/annotations");
         String outXmlsPath = outputDirectoryPath.concat("/xmls");
         File outXmls = new File(outXmlsPath);
-        File outAnnotations = new File(outAtationsPath);
-        File outDirectory = new File(outDirectoryPath);
+        File outAnnotations = new File(outAnnotationsPath);
+        File outImagesDirectory = new File(outImageDirectoryPath);
 
         outXmls.mkdirs();
         outAnnotations.mkdirs();
-        outDirectory.mkdirs();
+        outImagesDirectory.mkdirs();
 
         Map<PDPage, Map<Integer, PDMarkedContent>> markedContents = new HashMap<>();
         Map<PDPage, Rectangle2D> boxes;
@@ -107,7 +107,7 @@ public class TaggedDocument {
         for (int i = 0; i < document.getNumberOfPages(); i ++) {
             BufferedImage image = pdfRenderer.renderImageWithDPI(i, 150, ImageType.RGB);
             String imageFileName = String.format("%s_%03d.%s", pdfFileBaseName, i, "jpeg");
-            Path outputImagePath = Paths.get(outDirectory.toString(),imageFileName);
+            Path outputImagePath = Paths.get(outImagesDirectory.toString(),imageFileName);
             ImageIOUtil.writeImage(image, outputImagePath.toString(), 150);
 
             DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
@@ -139,6 +139,31 @@ public class TaggedDocument {
             rootElement.appendChild(segmented);
 
             PDPage currPage = document.getPage(i);
+            Page page = pages.get(currPage);
+            for (Tag tag: page.getTags()) {
+                Element object = doc.createElement("object");
+                Rectangle2D box = tag.getRect();
+                Element name = doc.createElement("name");
+                name.setTextContent(tag.getName().toString().toLowerCase());
+                object.appendChild(name);
+                Element bndbox = doc.createElement("bndbox");
+                Element xmin = doc.createElement("xmin");
+                xmin.setTextContent(Integer.toString((int) box.getMinX()));
+                bndbox.appendChild(xmin);
+                Element уmin = doc.createElement("уmin");
+                уmin.setTextContent(Integer.toString((int) box.getMinY()));
+                bndbox.appendChild(уmin);
+                Element xmax = doc.createElement("xmax");
+                xmax.setTextContent(Integer.toString((int) box.getMaxX()));
+                bndbox.appendChild(xmax);
+                Element уmax = doc.createElement("уmax");
+                уmax.setTextContent(Integer.toString((int) box.getMaxY()));
+                bndbox.appendChild(уmax);
+                object.appendChild(bndbox);
+                rootElement.appendChild(object);
+            }
+
+/*
             for (Map.Entry<PDPage, Rectangle2D> entry : boxes.entrySet()) {
                 PDPage page = entry.getKey();
                 if (page.equals(currPage)) {
@@ -164,6 +189,7 @@ public class TaggedDocument {
                     rootElement.appendChild(object);
                 }
             }
+*/
 
             TransformerFactory transformerFactory = TransformerFactory.newInstance();
             Transformer transformer = transformerFactory.newTransformer();
@@ -233,11 +259,13 @@ public class TaggedDocument {
             for (Map.Entry<PDPage, Rectangle2D> entry : boxes.entrySet()) {
                 page = entry.getKey();
                 Rectangle2D box = entry.getValue();
-                if (box == null)
+
+                if (box == null) {
                     continue;
-                Page p = pages.get(page);
-                p.addTag(new Tag(structType, box));
+                }
+
                 result.put(page, box);
+
                 if (structType.equals("LBody") || structType.equals("TR")
                         || structType.equals("Div")  || structType.equals("Document")
                         || structType.equals("Form") || structType.equals("Span")
@@ -246,13 +274,18 @@ public class TaggedDocument {
                 ) {
                     continue;
                 }
-                /*if ((structType.compareTo("Standard") != 0) && (structType.compareTo("Table") != 0) && (structType.compareTo("TD") != 0)) {
-                    continue;
-                }*/
-                if (box == null)
-                    continue;
 
-                PDPageContentStream canvas = visualizations.get(page);
+                Page p = pages.get(page);
+
+                if (structType.equals("Table")) {
+                    p.addTag(new Tag(TagsName.TABLE, box));
+                } else if (structType.equals("Figure")) {
+                    p.addTag(new Tag(TagsName.FIGURE, box));
+                } else {
+                    p.addTag(new Tag(TagsName.TEXT, box));
+                }
+
+/*                PDPageContentStream canvas = visualizations.get(page);
                 if (canvas == null) {
                     canvas = new PDPageContentStream(document, page, PDPageContentStream.AppendMode.APPEND, false, true);
                     visualizations.put(page, canvas);
@@ -269,8 +302,7 @@ public class TaggedDocument {
                 //canvas.showText(String.format("<%s index=%s>", "фывфывфыв", indexHere));
                 canvas.endText();
                 canvas.restoreGraphicsState();
-                result.put(page, box);
-
+                result.put(page, box);*/
             }
         }
         return result;

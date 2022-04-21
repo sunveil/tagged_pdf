@@ -15,4 +15,8 @@ public class Page {
         tags.add(tag);
     }
 
+    public List<Tag> getTags(){
+        return tags;
+    }
+
 }
