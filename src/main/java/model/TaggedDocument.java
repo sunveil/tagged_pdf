@@ -91,7 +91,7 @@ public class TaggedDocument {
             }
         }
 
-        processImagesFromPDF(document);
+        //processImagesFromPDF(document);
 
         PDStructureNode root = document.getDocumentCatalog().getStructureTreeRoot();
         if (root == null)
@@ -129,7 +129,9 @@ public class TaggedDocument {
             rootElement.appendChild(filename);
             Element size = doc.createElement("size");
             Element width = doc.createElement("width");
-            width.setTextContent(Integer.toString(image.getWidth()));
+            int imageWidth = image.getWidth();
+            int imageHeight = image.getHeight();
+            width.setTextContent(Integer.toString(imageWidth));
             size.appendChild(width);
             Element height = doc.createElement("height");
             height.setTextContent(Integer.toString(image.getHeight()));
@@ -143,6 +145,9 @@ public class TaggedDocument {
             rootElement.appendChild(segmented);
 
             PDPage currPage = document.getPage(i);
+            PDRectangle pageBounds = currPage.getMediaBox();
+            float pdfWidth = pageBounds.getWidth();
+            float pdfHeight = pageBounds.getHeight();
             Page page = pages.get(currPage);
             for (Tag tag: page.getTags()) {
                 Element object = doc.createElement("object");
@@ -150,18 +155,38 @@ public class TaggedDocument {
                 Element name = doc.createElement("name");
                 name.setTextContent(tag.getName().toString().toLowerCase());
                 object.appendChild(name);
+
+                Element pose = doc.createElement("pose");
+                pose.setTextContent("Unspecified");
+                object.appendChild(pose);
+
+                Element truncated = doc.createElement("truncated");
+                truncated.setTextContent("0");
+                object.appendChild(truncated);
+
+                Element difficult = doc.createElement("difficult");
+                difficult.setTextContent("0");
+                object.appendChild(difficult);
+
+                //x_image = x_pdf * width_image / width_page
+                //y_image = (height_pdf - y_pdf) * height_image / height_pdf
+
                 Element bndbox = doc.createElement("bndbox");
                 Element xmin = doc.createElement("xmin");
-                xmin.setTextContent(Integer.toString((int) box.getMinX()));
+                double xMinImage = box.getMinX() * imageWidth / pdfWidth;
+                xmin.setTextContent(Integer.toString((int) xMinImage));
                 bndbox.appendChild(xmin);
                 Element уmin = doc.createElement("уmin");
-                уmin.setTextContent(Integer.toString((int) box.getMinY()));
+                double yMinImage = (pdfHeight - box.getMinY()) * imageHeight / pdfHeight;
+                уmin.setTextContent(Integer.toString((int) yMinImage));
                 bndbox.appendChild(уmin);
                 Element xmax = doc.createElement("xmax");
-                xmax.setTextContent(Integer.toString((int) box.getMaxX()));
+                double xMixImage = box.getMaxX() * imageWidth / pdfWidth;
+                xmax.setTextContent(Integer.toString((int) xMixImage));
                 bndbox.appendChild(xmax);
                 Element уmax = doc.createElement("уmax");
-                уmax.setTextContent(Integer.toString((int) box.getMaxY()));
+                double yMaxImage = (pdfHeight - box.getMaxY()) * imageHeight / pdfHeight;
+                уmax.setTextContent(Integer.toString((int) yMaxImage));
                 bndbox.appendChild(уmax);
                 object.appendChild(bndbox);
                 rootElement.appendChild(object);
