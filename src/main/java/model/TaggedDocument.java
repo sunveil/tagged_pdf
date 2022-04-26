@@ -2,19 +2,20 @@ package model;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.fontbox.util.BoundingBox;
-import org.apache.pdfbox.cos.COSArray;
-import org.apache.pdfbox.cos.COSBase;
-import org.apache.pdfbox.cos.COSDictionary;
-import org.apache.pdfbox.cos.COSNumber;
+import org.apache.pdfbox.cos.*;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.PDResources;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.documentinterchange.logicalstructure.PDMarkedContentReference;
 import org.apache.pdfbox.pdmodel.documentinterchange.logicalstructure.PDStructureElement;
 import org.apache.pdfbox.pdmodel.documentinterchange.logicalstructure.PDStructureNode;
 import org.apache.pdfbox.pdmodel.documentinterchange.markedcontent.PDMarkedContent;
 import org.apache.pdfbox.pdmodel.font.*;
+import org.apache.pdfbox.pdmodel.graphics.PDXObject;
+import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.text.PDFMarkedContentExtractor;
@@ -37,6 +38,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.GeneralPath;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
+import java.awt.image.RenderedImage;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -89,6 +91,8 @@ public class TaggedDocument {
             }
         }
 
+        processImagesFromPDF(document);
+
         PDStructureNode root = document.getDocumentCatalog().getStructureTreeRoot();
         if (root == null)
             return;
@@ -102,7 +106,7 @@ public class TaggedDocument {
 
         String pdfFileBaseName = FilenameUtils.getBaseName(fileName);
         String outFilePath = getOutputFilePath("taggedpdf", pdfFileBaseName, "pdf");
-        document.save(outFilePath);
+        //document.save(outFilePath);
 
         for (int i = 0; i < document.getNumberOfPages(); i ++) {
             BufferedImage image = pdfRenderer.renderImageWithDPI(i, 150, ImageType.RGB);
@@ -162,34 +166,6 @@ public class TaggedDocument {
                 object.appendChild(bndbox);
                 rootElement.appendChild(object);
             }
-
-/*
-            for (Map.Entry<PDPage, Rectangle2D> entry : boxes.entrySet()) {
-                PDPage page = entry.getKey();
-                if (page.equals(currPage)) {
-                    Element object = doc.createElement("object");
-                    Rectangle2D box = entry.getValue();
-                    Element name = doc.createElement("name");
-                    name.setTextContent("tblock");
-                    object.appendChild(name);
-                    Element bndbox = doc.createElement("bndbox");
-                    Element xmin = doc.createElement("xmin");
-                    xmin.setTextContent(Integer.toString((int) box.getMinX()));
-                    bndbox.appendChild(xmin);
-                    Element уmin = doc.createElement("уmin");
-                    уmin.setTextContent(Integer.toString((int) box.getMinY()));
-                    bndbox.appendChild(уmin);
-                    Element xmax = doc.createElement("xmax");
-                    xmax.setTextContent(Integer.toString((int) box.getMaxX()));
-                    bndbox.appendChild(xmax);
-                    Element уmax = doc.createElement("уmax");
-                    уmax.setTextContent(Integer.toString((int) box.getMaxY()));
-                    bndbox.appendChild(уmax);
-                    object.appendChild(bndbox);
-                    rootElement.appendChild(object);
-                }
-            }
-*/
 
             TransformerFactory transformerFactory = TransformerFactory.newInstance();
             Transformer transformer = transformerFactory.newTransformer();
@@ -471,7 +447,7 @@ public class TaggedDocument {
 
         String pdfFileBaseName = FilenameUtils.getBaseName(fileName);
         String outFilePath = getOutputFilePath("taggedpdf", pdfFileBaseName, "pdf");
-        document.save(outFilePath);
+        //document.save(outFilePath);
 
         for (int i = 0; i < document.getNumberOfPages(); i ++) {
             BufferedImage image = pdfRenderer.renderImageWithDPI(i, 150, ImageType.RGB);
@@ -526,7 +502,7 @@ public class TaggedDocument {
                     Element xmax = doc.createElement("xmax");
                     xmax.setTextContent(Integer.toString((int) box.getMaxX()));
                     bndbox.appendChild(xmax);
-                    Element уmax = doc.createElement("уmax");
+                    Element уmax = doc.createElement("ymax");
                     уmax.setTextContent(Integer.toString((int) box.getMaxY()));
                     bndbox.appendChild(уmax);
                     object.appendChild(bndbox);
@@ -560,6 +536,33 @@ public class TaggedDocument {
 
         File file = new File(document.getDocumentInformation().getCreator());
         return String.format("%s/%s.%s", outDirectoryPath, fileName, format);
+    }
+
+    public void processImagesFromPDF(PDDocument document) throws IOException {
+        List<RenderedImage> images = new ArrayList<>();
+        for (PDPage page : document.getPages()) {
+            images = getImagesFromResources(page.getResources());
+            Page p = pages.get(page);
+            for (RenderedImage image: images) {
+                p.addTag(new Tag(TagsName.FIGURE, image.getData().getBounds()));
+            }
+        }
+    }
+
+    private List<RenderedImage> getImagesFromResources(PDResources resources) throws IOException {
+        List<RenderedImage> images = new ArrayList<>();
+
+        for (COSName xObjectName : resources.getXObjectNames()) {
+            PDXObject xObject = resources.getXObject(xObjectName);
+
+            if (xObject instanceof PDFormXObject) {
+                images.addAll(getImagesFromResources(((PDFormXObject) xObject).getResources()));
+            } else if (xObject instanceof PDImageXObject) {
+                images.add(((PDImageXObject) xObject).getImage());
+            }
+        }
+
+        return images;
     }
 
 }

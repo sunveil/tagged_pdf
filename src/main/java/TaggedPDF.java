@@ -6,6 +6,9 @@ import org.apache.pdfbox.cos.*;
 import org.apache.pdfbox.pdmodel.*;
 import org.apache.pdfbox.pdmodel.documentinterchange.logicalstructure.*;
 import org.apache.pdfbox.pdmodel.documentinterchange.markedcontent.PDMarkedContent;
+import org.apache.pdfbox.pdmodel.graphics.PDXObject;
+import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.text.TextPosition;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
@@ -13,6 +16,7 @@ import org.kohsuke.args4j.Option;
 
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.TransformerException;
+import java.awt.image.RenderedImage;
 import java.io.*;
 import java.nio.file.*;
 import java.text.SimpleDateFormat;
@@ -92,11 +96,6 @@ public class TaggedPDF {
             Path debugDirPath = outputPath.resolve(".");
             TaggedDocument doc = new TaggedDocument(document, debugDirPath);
             doc.parseTags(path.getFileName().toString());
-            //doc.visualize();
-            //VisualizeMarkedContent drawer = new VisualizeMarkedContent(document, debugDirPath);
-            //drawer.visualize(path.getFileName().toString());
-            //TaggedPDF meta = new TaggedPDF();
-            //meta.printMetadata(document);
         } catch (TransformerException e) {
             e.printStackTrace();
         } catch (ParserConfigurationException e) {
